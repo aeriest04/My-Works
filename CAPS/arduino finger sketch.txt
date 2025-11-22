@@ -1,0 +1,108 @@
+#include <Adafruit_Fingerprint.h>
+// SoftwareSerial is only for specific pins, so we're sticking with it for now
+#include <SoftwareSerial.h>
+
+// Set up SoftwareSerial on pins 2 (RX) and 3 (TX)
+SoftwareSerial mySerial(2, 3); // RX, TX (You can adjust the pins here as per your wiring)
+Adafruit_Fingerprint finger(&mySerial);
+uint8_t id;
+
+void setup() {
+  Serial.begin(57600);  // For communication with the Serial Monitor
+  mySerial.begin(57600);  // For communication with the Fingerprint sensor via SoftwareSerial
+
+  Serial.println("[FINGERPRINT] Initializing...");
+
+  if (finger.verifyPassword()) {
+    Serial.println("[FINGERPRINT] Sensor detected!");
+  } else {
+    Serial.println("[FINGERPRINT] Sensor not found!");
+    while (1) { delay(1); }  // Halt if sensor is not found
+  }
+}
+
+void loop() {
+  getFingerprintID();
+  delay(50);  // Delay before trying to detect again
+}
+
+// -------------------------------------------------------------
+// Fingerprint Enrollment (Triggered by command "ENROLLx")
+// -------------------------------------------------------------
+void enrollFingerprint(uint8_t id) {
+  int p = -1;
+  Serial.println("Place finger on sensor");
+
+  while (p != FINGERPRINT_OK) {
+    p = finger.getImage();
+    if (p == FINGERPRINT_NOFINGER) continue;
+  }
+
+  p = finger.image2Tz(1);
+  if (p != FINGERPRINT_OK) { Serial.println("Image conversion failed"); return; }
+
+  Serial.println("Remove finger");
+  delay(2000);
+  while (finger.getImage() != FINGERPRINT_NOFINGER);
+
+  Serial.println("Place same finger again");
+  p = -1;
+  while (p != FINGERPRINT_OK) {
+    p = finger.getImage();
+    if (p == FINGERPRINT_NOFINGER) continue;
+  }
+
+  p = finger.image2Tz(2);
+  if (p != FINGERPRINT_OK) { Serial.println("Second image failed"); return; }
+
+  p = finger.createModel();
+  if (p == FINGERPRINT_OK) {
+    Serial.println("Prints matched!");
+  } else {
+    Serial.println("Failed to create model");
+    return;
+  }
+
+  p = finger.storeModel(id);
+  if (p == FINGERPRINT_OK) {
+    Serial.print("Enrollment complete ID:");
+    Serial.println(id);
+  } else {
+    Serial.println("Enroll failed");
+  }
+}
+
+// -------------------------------------------------------------
+// Fingerprint Scanning (Auto Login)
+// -------------------------------------------------------------
+void getFingerprintID() {
+  uint8_t p = finger.getImage();
+  if (p != FINGERPRINT_OK) return;
+
+  p = finger.image2Tz();
+  if (p != FINGERPRINT_OK) return;
+
+  p = finger.fingerSearch();
+  if (p == FINGERPRINT_OK) {
+    Serial.print("Login success ID:");
+    Serial.println(finger.fingerID);
+    delay(2000);  // Delay before next scan
+  } else if (p == FINGERPRINT_NOTFOUND) {
+    Serial.println("No match found");
+    delay(1000);  // Wait a second before trying again
+  }
+}
+
+// -------------------------------------------------------------
+// Serial Command for Enrollment
+// -------------------------------------------------------------
+void serialEvent() {
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    if (cmd.startsWith("ENROLL")) {
+      id = cmd.substring(6).toInt();
+      enrollFingerprint(id);
+    }
+  }
+}

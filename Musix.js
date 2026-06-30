@@ -1,4 +1,4 @@
-const apiKey = "AIzaSyAAhHJGWXSUZgnXevG-GWz-BuuhgaQGeEU";  
+const apiKey = "AIzaSyCasg7SLmG_csYEwrXmKnQWw3z_W7LRSlI";  
 const searchInput = document.getElementById("search-music"); 
 const searchButton = document.getElementById("search-btn"); 
 const musicResults = document.getElementById("music-results"); 
